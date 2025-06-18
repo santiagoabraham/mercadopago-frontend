@@ -18,64 +18,65 @@ function buscarSocio() {
   dniGlobal = dni;
   mostrarPantalla("pantallaCarga");
 
-setTimeout(() => {
-  Promise.all([
-    fetch("https://api.sheetbest.com/sheets/f37ca123-cfac-4228-846b-8e526202c6e7").then(res => res.json()),
-    fetch(`https://backend-mercadopago-ulig.onrender.com/estado_pago?dni=${dni}`).then(res => res.json())
-  ])
-  .then(([data, estado]) => {
-    const socioFiltrado = data.filter(item => item.DNI && item.DNI.trim() === dni);
-    const resultadoDiv = document.getElementById("resultado");
-    const pagarBtn = document.getElementById("pagarBtn");
-    const qrDiv = document.getElementById("qrcode");
+  setTimeout(() => {
+    fetch("https://api.sheetbest.com/sheets/f37ca123-cfac-4228-846b-8e526202c6e7")
+      .then(res => res.json())
+      .then(data => {
+        const socioFiltrado = data.filter(item => item.DNI && item.DNI.trim() === dni);
+        const resultadoDiv = document.getElementById("resultado");
+        const pagarBtn = document.getElementById("pagarBtn");
+        const qrDiv = document.getElementById("qrcode");
 
-    qrDiv.innerHTML = "";
-    cuotasSeleccionadas = [];
-    pagarBtn.disabled = true;
+        qrDiv.innerHTML = "";
+        cuotasSeleccionadas = [];
+        pagarBtn.disabled = true;
 
-    const pagados = estado.comprobantes || [];
+        if (socioFiltrado.length > 0) {
+          const comprobantesTodos = socioFiltrado.map(c => c.Nro_Comprobante);
 
-    if (socioFiltrado.length > 0) {
-      let html = `<strong>Nombre:</strong> ${socioFiltrado[0].Nombre}<br>`;
-      html += `<strong>Estado:</strong> ${socioFiltrado[0].Estado}<br>`;
-      html += `<strong>Cuotas adeudadas:</strong><br><ul style="list-style: none; padding-left: 0;">`;
+          fetch(`https://backend-mercadopago-ulig.onrender.com/estado_pago?dni=${dni}&comprobantes=${comprobantesTodos.join(",")}`)
+            .then(res => res.json())
+            .then(estado => {
+              const pagados = estado.comprobantes || [];
+              let html = `<strong>Nombre:</strong> ${socioFiltrado[0].Nombre}<br>`;
+              html += `<strong>Estado:</strong> ${socioFiltrado[0].Estado}<br>`;
+              html += `<strong>Cuotas adeudadas:</strong><br><ul style="list-style: none; padding-left: 0;">`;
 
-      socioFiltrado.forEach((cuota, index) => {
-        const comp = cuota.Nro_Comprobante;
-        const estaPagado = pagados.includes(comp);
+              socioFiltrado.forEach((cuota) => {
+                const comp = cuota.Nro_Comprobante;
+                const estaPagado = pagados.includes(comp);
 
-        html += `<li><label>`;
-        if (estaPagado) {
-          html += `
-            <input type="checkbox" disabled />
-            ${cuota.Cuota} - ${cuota.Importe.trim()} (Vence: ${cuota.Vencimiento}) <span style="color:green;">✅ PAGADO</span>
-          `;
+                html += `<li><label>`;
+                if (estaPagado) {
+                  html += `
+                    <input type="checkbox" disabled />
+                    ${cuota.Cuota} - ${cuota.Importe.trim()} (Vence: ${cuota.Vencimiento}) <span style="color:green;">✅ PAGADO</span>
+                  `;
+                } else {
+                  html += `
+                    <input type="checkbox" value="${cuota.Importe.trim()}" data-cuota="${cuota.Cuota}" data-vencimiento="${cuota.Vencimiento}" data-comprobante="${cuota.Nro_Comprobante}" onchange="actualizarSeleccion()"/>
+                    ${cuota.Cuota} - ${cuota.Importe.trim()} (Vence: ${cuota.Vencimiento})
+                  `;
+                }
+                html += `</label></li>`;
+              });
+
+              html += `</ul><strong>Total a pagar:</strong> <span id="totalSeleccionado">$0.00</span>`;
+              resultadoDiv.className = "card fade-in";
+              resultadoDiv.innerHTML = html;
+              mostrarPantalla("pantallaCuotas");
+            });
         } else {
-          html += `
-            <input type="checkbox" value="${cuota.Importe.trim()}" data-cuota="${cuota.Cuota}" data-vencimiento="${cuota.Vencimiento}" data-comprobante="${cuota.Nro_Comprobante}" onchange="actualizarSeleccion()"/>
-            ${cuota.Cuota} - ${cuota.Importe.trim()} (Vence: ${cuota.Vencimiento})
-          `;
+          alert("No se encontró ningún socio con ese DNI.");
+          mostrarPantalla("pantallaInicio");
         }
-        html += `</label></li>`;
+      })
+      .catch(error => {
+        console.error(error);
+        alert("Error al consultar los datos.");
+        mostrarPantalla("pantallaInicio");
       });
-
-      html += `</ul><strong>Total a pagar:</strong> <span id="totalSeleccionado">$0.00</span>`;
-      resultadoDiv.className = "card fade-in";
-      resultadoDiv.innerHTML = html;
-
-      mostrarPantalla("pantallaCuotas");
-    } else {
-      alert("No se encontró ningún socio con ese DNI.");
-      mostrarPantalla("pantallaInicio");
-    }
-  })
-  .catch(error => {
-    console.error(error);
-    alert("Error al consultar los datos.");
-    mostrarPantalla("pantallaInicio");
-  });
-}, 2000);
-
+  }, 2000);
 }
 
 function actualizarSeleccion() {
@@ -163,9 +164,26 @@ const interval = setInterval(() => {
     .then(status => {
       if (status.pagado) {
         clearInterval(interval);
-        qrDiv.innerHTML = `<div class="agradecimiento fade-in">¡Gracias por pagar! 🎉</div>`;
-        document.getElementById("pagarBtn").style.display = "none";
-        document.getElementById("volverBtn").style.display = "none";
+
+        const resultadoDiv = document.getElementById("resultado");
+        const pagarBtn = document.getElementById("pagarBtn");
+        const volverBtn = document.getElementById("volverBtn");
+
+        resultadoDiv.innerHTML = "";
+        pagarBtn.style.display = "none";
+        volverBtn.style.display = "none";
+
+        qrDiv.innerHTML = `
+          <div class="agradecimiento fade-in">
+            ¡Gracias por pagar! 🎉<br><br>
+            Serás redirigido al inicio en 5 segundos...
+          </div>`;
+
+        mostrarPantalla("pantallaCarga");
+
+        setTimeout(() => {
+          volverInicio();
+        }, 5000);
       }
     });
 }, 5000);
