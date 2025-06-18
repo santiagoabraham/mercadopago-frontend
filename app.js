@@ -1,5 +1,5 @@
 let cuotasSeleccionadas = [];
-let dniGlobal = "";
+let dniGlobal = null;
 
 function mostrarPantalla(id) {
   document.getElementById("pantallaInicio").classList.add("hidden");
@@ -31,48 +31,30 @@ function buscarSocio() {
         cuotasSeleccionadas = [];
         pagarBtn.disabled = true;
 
-        if (socioFiltrado.length === 0) {
+        if (socioFiltrado.length > 0) {
+          let html = `<strong>Nombre:</strong> ${socioFiltrado[0].Nombre}<br>`;
+          html += `<strong>Estado:</strong> ${socioFiltrado[0].Estado}<br>`;
+          html += `<strong>Cuotas adeudadas:</strong><br><ul style="list-style: none; padding-left: 0;">`;
+
+          socioFiltrado.forEach((cuota, index) => {
+            html += `
+              <li>
+                <label>
+                  <input type="checkbox" value="${cuota.Importe.trim()}" data-cuota="${cuota.Cuota}" data-vencimiento="${cuota.Vencimiento}" data-comprobante="${cuota.Nro_Comprobante}" onchange="actualizarSeleccion()"/>
+                  ${cuota.Cuota} - ${cuota.Importe.trim()} (Vence: ${cuota.Vencimiento})
+                </label>
+              </li>`;
+          });
+
+          html += `</ul><strong>Total a pagar:</strong> <span id="totalSeleccionado">$0.00</span>`;
+          resultadoDiv.className = "card fade-in";
+          resultadoDiv.innerHTML = html;
+
+          mostrarPantalla("pantallaCuotas");
+        } else {
           alert("No se encontró ningún socio con ese DNI.");
           mostrarPantalla("pantallaInicio");
-          return;
         }
-
-        fetch(`https://backend-mercadopago-ulig.onrender.com/estado_pago?dni=${dni}`)
-          .then(res => res.json())
-          .then(status => {
-            const yaPagados = status.comprobantes || [];
-            const cuotasPendientes = socioFiltrado.filter(c => !yaPagados.includes(c.Nro_Comprobante));
-
-            if (cuotasPendientes.length === 0) {
-              alert("Ya abonaste todas tus cuotas pendientes.");
-              volverInicio();
-              return;
-            }
-
-            let html = `<strong>Nombre:</strong> ${socioFiltrado[0].Nombre}<br>`;
-            html += `<strong>Estado:</strong> ${socioFiltrado[0].Estado}<br>`;
-            html += `<strong>Cuotas adeudadas:</strong><br><ul style="list-style: none; padding-left: 0;">`;
-
-            cuotasPendientes.forEach(cuota => {
-              html += `
-                <li>
-                  <label>
-                    <input type="checkbox" value="${cuota.Importe.trim()}"
-                      data-cuota="${cuota.Cuota}"
-                      data-vencimiento="${cuota.Vencimiento}"
-                      data-comprobante="${cuota.Nro_Comprobante}"
-                      onchange="actualizarSeleccion()"/>
-                    ${cuota.Cuota} - ${cuota.Importe.trim()} (Vence: ${cuota.Vencimiento})
-                  </label>
-                </li>`;
-            });
-
-            html += `</ul><strong>Total a pagar:</strong> <span id="totalSeleccionado">$0.00</span>`;
-            resultadoDiv.className = "card fade-in";
-            resultadoDiv.innerHTML = html;
-
-            mostrarPantalla("pantallaCuotas");
-          });
       })
       .catch(error => {
         console.error(error);
@@ -111,14 +93,13 @@ function generarPago() {
   const qrDiv = document.getElementById("qrcode");
   const pagarBtn = document.getElementById("pagarBtn");
 
-  if (cuotasSeleccionadas.length === 0) return;
+  if (cuotasSeleccionadas.length === 0 || !dniGlobal) return;
 
   mostrarPantalla("pantallaCarga");
 
   setTimeout(() => {
     let total = 0;
     const comprobantes = [];
-
     cuotasSeleccionadas.forEach(c => {
       const limpio = c.importe.replace(/\s/g, "").replace("$", "").replace(/\./g, "").replace(",", ".");
       const importe = parseFloat(limpio);
@@ -126,7 +107,9 @@ function generarPago() {
       comprobantes.push(c.comprobante);
     });
 
-    fetch(`https://backend-mercadopago-ulig.onrender.com/crear_qr?dni=${dniGlobal}&total=${total}&comprobantes=${encodeURIComponent(JSON.stringify(comprobantes))}`)
+    const url = `https://backend-mercadopago-ulig.onrender.com/crear_qr?dni=${dniGlobal}&total=${total}&comprobantes=${comprobantes.join(",")}`;
+
+    fetch(url)
       .then(response => {
         if (!response.ok) throw new Error("No se pudo generar el link de pago");
         return response.json();
@@ -154,28 +137,21 @@ function volverInicio() {
   mostrarPantalla("pantallaInicio");
 }
 
-// Escuchar si se confirma el pago real
-let interval = null;
+const qrDiv = document.getElementById("qrcode");
 
-function iniciarVerificacionPago() {
-  if (interval) clearInterval(interval);
-  interval = setInterval(() => {
-    fetch(`https://backend-mercadopago-ulig.onrender.com/estado_pago?dni=${dniGlobal}`)
-      .then(res => res.json())
-      .then(status => {
-        const comprobantesPagados = status.comprobantes || [];
-        const comprobantesActuales = cuotasSeleccionadas.map(c => c.comprobante);
-        const todosPagados = comprobantesActuales.every(c => comprobantesPagados.includes(c));
+const interval = setInterval(() => {
+  if (!dniGlobal || cuotasSeleccionadas.length === 0) return;
+  const comprobantes = cuotasSeleccionadas.map(c => c.comprobante);
+  const url = `https://backend-mercadopago-ulig.onrender.com/estado_pago?dni=${dniGlobal}&comprobantes=${comprobantes.join(",")}`;
 
-        if (todosPagados) {
-          clearInterval(interval);
-          document.getElementById("qrcode").innerHTML = `<div class="agradecimiento fade-in">¡Gracias por pagar! 🎉</div>`;
-          document.getElementById("pagarBtn").style.display = "none";
-          document.getElementById("volverBtn").style.display = "none";
-        }
-      });
-  }, 5000);
-}
-
-// Iniciar monitoreo al generar QR
-// Asegurate de llamar a esta función luego de generarPago si querés mostrar el mensaje de agradecimiento.
+  fetch(url)
+    .then(res => res.json())
+    .then(status => {
+      if (status.pagado) {
+        clearInterval(interval);
+        qrDiv.innerHTML = `<div class="agradecimiento fade-in">¡Gracias por pagar! 🎉</div>`;
+        document.getElementById("pagarBtn").style.display = "none";
+        document.getElementById("volverBtn").style.display = "none";
+      }
+    });
+}, 5000);
