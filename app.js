@@ -1,67 +1,146 @@
+let cuotasSeleccionadas = [];
+
+function mostrarPantalla(id) {
+  document.getElementById("pantallaInicio").classList.add("hidden");
+  document.getElementById("pantallaCarga").classList.add("hidden");
+  document.getElementById("pantallaCuotas").classList.add("hidden");
+  document.getElementById(id).classList.remove("hidden");
+}
+
 function buscarSocio() {
   const dni = document.getElementById("dniInput").value.trim();
-  const resultadoDiv = document.getElementById("resultado");
-  const qrDiv = document.getElementById("qrcode");
-
-  resultadoDiv.innerHTML = "";
-  qrDiv.innerHTML = "";
-
   if (dni === "" || isNaN(dni)) {
-    resultadoDiv.innerHTML = "Por favor ingresá un DNI válido.";
+    alert("Por favor ingresá un DNI válido.");
     return;
   }
 
-  fetch("https://api.sheetbest.com/sheets/f37ca123-cfac-4228-846b-8e526202c6e7")
-    .then(response => response.json())
-    .then(data => {
-      // Filtro manual por DNI (por si Sheet.best no lo hace)
-      const socioFiltrado = data.filter(item => item.DNI && item.DNI.trim() === dni);
+  mostrarPantalla("pantallaCarga");
 
-      if (socioFiltrado.length > 0) {
-        let html = `<strong>Nombre:</strong> ${socioFiltrado[0].Nombre}<br>`;
-        html += `<strong>Estado:</strong> ${socioFiltrado[0].Estado}<br>`;
-        html += `<strong>Cuotas adeudadas:</strong><br><ul>`;
+  setTimeout(() => {
+    fetch("https://api.sheetbest.com/sheets/f37ca123-cfac-4228-846b-8e526202c6e7")
+      .then(response => response.json())
+      .then(data => {
+        const socioFiltrado = data.filter(item => item.DNI && item.DNI.trim() === dni);
+        const resultadoDiv = document.getElementById("resultado");
+        const pagarBtn = document.getElementById("pagarBtn");
+        const qrDiv = document.getElementById("qrcode");
 
-        let total = 0;
+        qrDiv.innerHTML = "";
+        cuotasSeleccionadas = [];
+        pagarBtn.disabled = true;
 
-        socioFiltrado.forEach(cuota => {
-          html += `<li>${cuota.Cuota} - ${cuota.Importe.trim()} (Vence: ${cuota.Vencimiento})</li>`;
+        if (socioFiltrado.length > 0) {
+          let html = `<strong>Nombre:</strong> ${socioFiltrado[0].Nombre}<br>`;
+          html += `<strong>Estado:</strong> ${socioFiltrado[0].Estado}<br>`;
+          html += `<strong>Cuotas adeudadas:</strong><br><ul style="list-style: none; padding-left: 0;">`;
 
-          const limpio = cuota.Importe
-            .replace(/\s/g, "")
-            .replace("$", "")
-            .replace(/\./g, "")
-            .replace(",", ".");
+          socioFiltrado.forEach((cuota, index) => {
+            html += `
+              <li>
+                <label>
+                  <input type="checkbox" value="${cuota.Importe.trim()}" data-cuota="${cuota.Cuota}" data-vencimiento="${cuota.Vencimiento}" onchange="actualizarSeleccion()"/>
+                  ${cuota.Cuota} - ${cuota.Importe.trim()} (Vence: ${cuota.Vencimiento})
+                </label>
+              </li>`;
+          });
 
-          const importe = parseFloat(limpio);
-          total += isNaN(importe) ? 0 : importe;
-        });
+          html += `</ul><strong>Total a pagar:</strong> <span id="totalSeleccionado">$0.00</span>`;
+          resultadoDiv.className = "card fade-in";
+          resultadoDiv.innerHTML = html;
 
-        html += `</ul>`;
-        html += `<strong>Total a pagar:</strong> $${total.toLocaleString("es-AR", { minimumFractionDigits: 2 })}`;
-
-        resultadoDiv.innerHTML = html;
-
-        // Nuevo: llamada al backend real para generar QR
-          fetch(`https://backend-mercadopago-ulig.onrender.com/crear_qr?dni=${dni}&total=${total}`)
-            .then(response => {
-              if (!response.ok) throw new Error("No se pudo generar el link de pago");
-              return response.json();
-            })
-            .then(data => {
-              qrDiv.innerHTML = "";
-              new QRCode(qrDiv, data.link);
-            })
-            .catch(error => {
-              qrDiv.innerHTML = "Error al generar el código QR.";
-              console.error(error);
-            });
-      } else {
-        resultadoDiv.innerHTML = "No se encontró ningún socio con ese DNI.";
-      }
-    })
-    .catch(error => {
-      resultadoDiv.innerHTML = "Error al consultar los datos.";
-      console.error(error);
-    });
+          mostrarPantalla("pantallaCuotas");
+        } else {
+          alert("No se encontró ningún socio con ese DNI.");
+          mostrarPantalla("pantallaInicio");
+        }
+      })
+      .catch(error => {
+        console.error(error);
+        alert("Error al consultar los datos.");
+        mostrarPantalla("pantallaInicio");
+      });
+  }, 2000);
 }
+
+function actualizarSeleccion() {
+  const checkboxes = document.querySelectorAll('input[type="checkbox"]:checked');
+  const pagarBtn = document.getElementById("pagarBtn");
+  const totalDiv = document.getElementById("totalSeleccionado");
+
+  let total = 0;
+  cuotasSeleccionadas = [];
+
+  checkboxes.forEach(cb => {
+    const limpio = cb.value.replace(/\s/g, "").replace("$", "").replace(/\./g, "").replace(",", ".");
+    const importe = parseFloat(limpio);
+    total += isNaN(importe) ? 0 : importe;
+
+    cuotasSeleccionadas.push({
+      cuota: cb.dataset.cuota,
+      vencimiento: cb.dataset.vencimiento,
+      importe: cb.value
+    });
+  });
+
+  totalDiv.textContent = `$${total.toLocaleString("es-AR", { minimumFractionDigits: 2 })}`;
+  pagarBtn.disabled = (checkboxes.length === 0 || total === 0);
+}
+
+function generarPago() {
+  const dni = document.getElementById("dniInput").value.trim();
+  const qrDiv = document.getElementById("qrcode");
+  const pagarBtn = document.getElementById("pagarBtn");
+
+  if (cuotasSeleccionadas.length === 0) return;
+
+  mostrarPantalla("pantallaCarga");
+
+  setTimeout(() => {
+    let total = 0;
+    cuotasSeleccionadas.forEach(c => {
+      const limpio = c.importe.replace(/\s/g, "").replace("$", "").replace(/\./g, "").replace(",", ".");
+      const importe = parseFloat(limpio);
+      total += isNaN(importe) ? 0 : importe;
+    });
+
+    fetch(`https://backend-mercadopago-ulig.onrender.com/crear_qr?dni=${dni}&total=${total}`)
+      .then(response => {
+        if (!response.ok) throw new Error("No se pudo generar el link de pago");
+        return response.json();
+      })
+      .then(data => {
+        qrDiv.innerHTML = "";
+        new QRCode(qrDiv, data.link);
+        mostrarPantalla("pantallaCuotas");
+        pagarBtn.disabled = true;
+      })
+      .catch(error => {
+        qrDiv.innerHTML = "Error al generar el código QR.";
+        console.error(error);
+        mostrarPantalla("pantallaCuotas");
+      });
+  }, 2000);
+}
+
+function volverInicio() {
+  document.getElementById("dniInput").value = "";
+  cuotasSeleccionadas = [];
+  document.getElementById("resultado").innerHTML = "";
+  document.getElementById("qrcode").innerHTML = "";
+  document.getElementById("pagarBtn").disabled = true;
+  mostrarPantalla("pantallaInicio");
+}
+
+// Escuchar si se confirma el pago real
+const interval = setInterval(() => {
+  fetch(`https://backend-mercadopago-ulig.onrender.com/estado_pago?dni=${dni}`)
+    .then(res => res.json())
+    .then(status => {
+      if (status.pagado) {
+        clearInterval(interval);
+        qrDiv.innerHTML = `<div class="agradecimiento fade-in">¡Gracias por pagar! 🎉</div>`;
+        document.getElementById("pagarBtn").style.display = "none";
+        document.getElementById("volverBtn").style.display = "none";
+      }
+    });
+}, 5000);

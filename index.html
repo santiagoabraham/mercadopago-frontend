@@ -7,17 +7,23 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="container">
+  <div class="container" id="pantallaInicio">
     <img src="https://hebraica.org.ar/wp-content/uploads/theme/logo.png" alt="Logo" class="logo"/>
-
     <h1>Consulta de Deuda</h1>
-
     <input type="text" id="dniInput" placeholder="Ingresá tu DNI" inputmode="numeric" />
-
     <button onclick="buscarSocio()">Consultar</button>
+  </div>
 
+  <div class="container hidden" id="pantallaCarga">
+    <div class="loader"></div>
+    <p style="text-align: center; margin-top: 1rem;">Cargando información...</p>
+  </div>
+
+  <div class="container hidden" id="pantallaCuotas">
     <div id="resultado" class="card"></div>
     <div id="qrcode" class="qr"></div>
+    <button id="pagarBtn" onclick="generarPago()" disabled style="margin-top: 1rem;">Pagar cuotas seleccionadas</button>
+    <button id="volverBtn" onclick="volverInicio()" style="margin-top: 0.5rem; background-color: #c0392b;">Volver</button>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs/qrcode.min.js"></script>
