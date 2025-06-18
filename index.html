@@ -1,32 +1,59 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;700&display=swap" rel="stylesheet">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Consulta de Socios</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="container" id="pantallaInicio">
-    <img src="https://hebraica.org.ar/wp-content/uploads/theme/logo.png" alt="Logo" class="logo"/>
-    <h1>Consulta de Deuda</h1>
-    <input type="text" id="dniInput" placeholder="Ingresá tu DNI" inputmode="numeric" />
-    <button onclick="buscarSocio()">Consultar</button>
-  </div>
+  <div class="app-wrapper">
+    <div class="container" id="pantallaInicio">
+      <img src="https://hebraica.org.ar/wp-content/uploads/theme/logo.png" alt="Logo" class="logo"/>
+      <h1>Consulta de Deuda</h1>
+    <p class="subtexto">Ingresá tu DNI para ver tus cuotas pendientes y pagarlas al instante.</p>
+    
+      <div class="dni-wrapper">
+          <div class="dni-input-container">
+            <input type="text" id="dniInput" required inputmode="numeric" />
+            <label for="dniInput">Ingresá tu DNI</label>
+            <span class="underline"></span>
+          </div>
+        </div>
 
-  <div class="container hidden" id="pantallaCarga">
-    <div class="loader"></div>
-    <p style="text-align: center; margin-top: 1rem;">Cargando información...</p>
-  </div>
+        <div class="botones-accion">
+          <button class="pushable compact" onclick="buscarSocio()">
+            <span class="shadow"></span>
+            <span class="edge"></span>
+            <span class="front">Consultar</span>
+          </button>
+        </div>
+      </div>
+    </div>
 
-  <div class="container hidden" id="pantallaCuotas">
-    <div id="resultado" class="card"></div>
-    <div id="qrcode" class="qr"></div>
-    <button id="pagarBtn" onclick="generarPago()" disabled style="margin-top: 1rem;">Pagar cuotas seleccionadas</button>
-    <button id="volverBtn" onclick="volverInicio()" style="margin-top: 0.5rem; background-color: #c0392b;">Volver</button>
+    <div class="container hidden" id="pantallaCarga">
+      <section class="dots-container">
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+      </section>
+    </div>
+
+    <div class="container hidden" id="pantallaCuotas">
+      <div id="resultado" class="card"></div>
+      <div id="qrcode" class="qr"></div>
+      <button id="pagarBtn" onclick="generarPago()" disabled style="margin-top: 1rem;">Pagar cuotas seleccionadas</button>
+      <button id="volverBtn" onclick="volverInicio()" style="margin-top: 0.5rem; background-color: #c0392b;">Volver</button>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs/qrcode.min.js"></script>
   <script src="app.js"></script>
+  <footer class="footer">
+    <p>Sociedad Hebraica Argentina - © 2025</p>
+  </footer>
 </body>
 </html>

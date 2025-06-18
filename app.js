@@ -1,12 +1,34 @@
 let cuotasSeleccionadas = [];
 let dniGlobal = null; // NUEVO
 
-function mostrarPantalla(id) {
-  document.getElementById("pantallaInicio").classList.add("hidden");
-  document.getElementById("pantallaCarga").classList.add("hidden");
-  document.getElementById("pantallaCuotas").classList.add("hidden");
-  document.getElementById(id).classList.remove("hidden");
+let pantallaActual = null;
+
+function mostrarPantalla(nuevaPantallaID, direccion = "right") {
+  const pantallas = ["pantallaInicio", "pantallaCarga", "pantallaCuotas"];
+
+  // Ocultar todas las pantallas activas
+  pantallas.forEach(id => {
+    const pantalla = document.getElementById(id);
+    pantalla.classList.remove("active-slide", "slide-in-left", "slide-in-right");
+    pantalla.classList.add("hidden");
+  });
+
+  const nuevaPantalla = document.getElementById(nuevaPantallaID);
+
+  // Animación personalizada según dirección
+  const claseSlide = direccion === "left" ? "slide-in-left" : "slide-in-right";
+  nuevaPantalla.classList.add(claseSlide);
+
+  setTimeout(() => {
+    nuevaPantalla.classList.remove(claseSlide);
+    nuevaPantalla.classList.add("active-slide");
+  }, 10);
+
+  nuevaPantalla.classList.remove("hidden");
+  pantallaActual = nuevaPantallaID;
 }
+
+
 
 function buscarSocio() {
   const dni = document.getElementById("dniInput").value.trim();
@@ -33,21 +55,42 @@ function buscarSocio() {
         pagarBtn.disabled = true;
 
         if (socioFiltrado.length > 0) {
-          let html = `<strong>Nombre:</strong> ${socioFiltrado[0].Nombre}<br>`;
-          html += `<strong>Estado:</strong> ${socioFiltrado[0].Estado}<br>`;
-          html += `<strong>Cuotas adeudadas:</strong><br><ul style="list-style: none; padding-left: 0;">`;
+          let html = `
+            <div class="perfil-box">
+              <img src="https://cdn-icons-png.flaticon.com/512/9131/9131529.png" alt="Perfil" class="perfil-img">
+              <div class="bienvenida">
+                <p class="bienvenido-text">Bienvenido,</p>
+                <p class="bienvenido-nombre">${socioFiltrado[0].Nombre}</p>
+                <p class="bienvenido-dni">DNI: ${dni}</p>
+              </div>
+            </div>
+            <hr class="linea-separadora"/>
+            <strong class="seccion-cuotas">Cuotas adeudadas:</strong>
+            <ul style="list-style: none; padding-left: 0;">`;
+
 
           socioFiltrado.forEach((cuota, index) => {
-            html += `
-              <li>
-                <label>
-                  <input type="checkbox" value="${cuota.Importe.trim()}" data-cuota="${cuota.Cuota}" data-vencimiento="${cuota.Vencimiento}" onchange="actualizarSeleccion()"/>
-                  ${cuota.Cuota} - ${cuota.Importe.trim()} (Vence: ${cuota.Vencimiento})
-                </label>
-              </li>`;
-          });
+  html += `
+    <li class='cuota-card'>
+      <label class='checkbox-btn'>
+        <input type='checkbox' class='checkbox-cuota' value='${cuota.Importe.trim()}' data-cuota='${cuota.Cuota}' data-vencimiento='${cuota.Vencimiento}' onchange='actualizarSeleccion()'>
+        <span class='checkmark'></span>
+      </label>
+      <div class='cuota-info'>
+        <span class='cuota-nombre'>${cuota.Cuota}</span>
+        <span class='cuota-vencimiento'>(Vence: ${cuota.Vencimiento})</span>
+        <span class='cuota-importe'>$${cuota.Importe.trim()}</span>
+      </div>
+    </li>`;
+});
 
-          html += `</ul><strong>Total a pagar:</strong> <span id="totalSeleccionado">$0.00</span>`;
+
+          html += `</ul>
+            <div class="total-box">
+              <strong class="total-label">Total a pagar:</strong>
+              <span id="totalSeleccionado" class="total-importe">$0.00</span>
+            </div>`;
+
           resultadoDiv.className = "card fade-in";
           resultadoDiv.innerHTML = html;
 
@@ -85,7 +128,10 @@ function actualizarSeleccion() {
     });
   });
 
-  totalDiv.textContent = `$${total.toLocaleString("es-AR", { minimumFractionDigits: 2 })}`;
+  totalDiv.classList.remove("animar-total");
+void totalDiv.offsetWidth; // reiniciar animación
+totalDiv.textContent = `$${total.toLocaleString("es-AR", { minimumFractionDigits: 2 })}`;
+totalDiv.classList.add("animar-total");
   pagarBtn.disabled = (checkboxes.length === 0 || total === 0);
 }
 
@@ -130,8 +176,9 @@ function volverInicio() {
   document.getElementById("resultado").innerHTML = "";
   document.getElementById("qrcode").innerHTML = "";
   document.getElementById("pagarBtn").disabled = true;
-  mostrarPantalla("pantallaInicio");
+  mostrarPantalla("pantallaInicio", "left"); // ⬅️ efecto de volver
 }
+
 
 // ✅ Escuchar si se confirma el pago real
 const qrDiv = document.getElementById("qrcode");
@@ -149,3 +196,7 @@ const interval = setInterval(() => {
       }
     });
 }, 5000);
+function limpiarDNI() {
+  document.getElementById("dniInput").value = "";
+  document.getElementById("dniInput").focus();
+}
