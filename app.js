@@ -18,50 +18,64 @@ function buscarSocio() {
   dniGlobal = dni;
   mostrarPantalla("pantallaCarga");
 
-  setTimeout(() => {
-    fetch("https://api.sheetbest.com/sheets/f37ca123-cfac-4228-846b-8e526202c6e7")
-      .then(response => response.json())
-      .then(data => {
-        const socioFiltrado = data.filter(item => item.DNI && item.DNI.trim() === dni);
-        const resultadoDiv = document.getElementById("resultado");
-        const pagarBtn = document.getElementById("pagarBtn");
-        const qrDiv = document.getElementById("qrcode");
+setTimeout(() => {
+  Promise.all([
+    fetch("https://api.sheetbest.com/sheets/f37ca123-cfac-4228-846b-8e526202c6e7").then(res => res.json()),
+    fetch(`https://backend-mercadopago-ulig.onrender.com/estado_pago?dni=${dni}`).then(res => res.json())
+  ])
+  .then(([data, estado]) => {
+    const socioFiltrado = data.filter(item => item.DNI && item.DNI.trim() === dni);
+    const resultadoDiv = document.getElementById("resultado");
+    const pagarBtn = document.getElementById("pagarBtn");
+    const qrDiv = document.getElementById("qrcode");
 
-        qrDiv.innerHTML = "";
-        cuotasSeleccionadas = [];
-        pagarBtn.disabled = true;
+    qrDiv.innerHTML = "";
+    cuotasSeleccionadas = [];
+    pagarBtn.disabled = true;
 
-        if (socioFiltrado.length > 0) {
-          let html = `<strong>Nombre:</strong> ${socioFiltrado[0].Nombre}<br>`;
-          html += `<strong>Estado:</strong> ${socioFiltrado[0].Estado}<br>`;
-          html += `<strong>Cuotas adeudadas:</strong><br><ul style="list-style: none; padding-left: 0;">`;
+    const pagados = estado.comprobantes || [];
 
-          socioFiltrado.forEach((cuota, index) => {
-            html += `
-              <li>
-                <label>
-                  <input type="checkbox" value="${cuota.Importe.trim()}" data-cuota="${cuota.Cuota}" data-vencimiento="${cuota.Vencimiento}" data-comprobante="${cuota.Nro_Comprobante}" onchange="actualizarSeleccion()"/>
-                  ${cuota.Cuota} - ${cuota.Importe.trim()} (Vence: ${cuota.Vencimiento})
-                </label>
-              </li>`;
-          });
+    if (socioFiltrado.length > 0) {
+      let html = `<strong>Nombre:</strong> ${socioFiltrado[0].Nombre}<br>`;
+      html += `<strong>Estado:</strong> ${socioFiltrado[0].Estado}<br>`;
+      html += `<strong>Cuotas adeudadas:</strong><br><ul style="list-style: none; padding-left: 0;">`;
 
-          html += `</ul><strong>Total a pagar:</strong> <span id="totalSeleccionado">$0.00</span>`;
-          resultadoDiv.className = "card fade-in";
-          resultadoDiv.innerHTML = html;
+      socioFiltrado.forEach((cuota, index) => {
+        const comp = cuota.Nro_Comprobante;
+        const estaPagado = pagados.includes(comp);
 
-          mostrarPantalla("pantallaCuotas");
+        html += `<li><label>`;
+        if (estaPagado) {
+          html += `
+            <input type="checkbox" disabled />
+            ${cuota.Cuota} - ${cuota.Importe.trim()} (Vence: ${cuota.Vencimiento}) <span style="color:green;">✅ PAGADO</span>
+          `;
         } else {
-          alert("No se encontró ningún socio con ese DNI.");
-          mostrarPantalla("pantallaInicio");
+          html += `
+            <input type="checkbox" value="${cuota.Importe.trim()}" data-cuota="${cuota.Cuota}" data-vencimiento="${cuota.Vencimiento}" data-comprobante="${cuota.Nro_Comprobante}" onchange="actualizarSeleccion()"/>
+            ${cuota.Cuota} - ${cuota.Importe.trim()} (Vence: ${cuota.Vencimiento})
+          `;
         }
-      })
-      .catch(error => {
-        console.error(error);
-        alert("Error al consultar los datos.");
-        mostrarPantalla("pantallaInicio");
+        html += `</label></li>`;
       });
-  }, 2000);
+
+      html += `</ul><strong>Total a pagar:</strong> <span id="totalSeleccionado">$0.00</span>`;
+      resultadoDiv.className = "card fade-in";
+      resultadoDiv.innerHTML = html;
+
+      mostrarPantalla("pantallaCuotas");
+    } else {
+      alert("No se encontró ningún socio con ese DNI.");
+      mostrarPantalla("pantallaInicio");
+    }
+  })
+  .catch(error => {
+    console.error(error);
+    alert("Error al consultar los datos.");
+    mostrarPantalla("pantallaInicio");
+  });
+}, 2000);
+
 }
 
 function actualizarSeleccion() {
