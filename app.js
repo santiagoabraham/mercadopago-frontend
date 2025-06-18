@@ -1,4 +1,5 @@
 let cuotasSeleccionadas = [];
+let dniGlobal = null; // NUEVO
 
 function mostrarPantalla(id) {
   document.getElementById("pantallaInicio").classList.add("hidden");
@@ -13,6 +14,8 @@ function buscarSocio() {
     alert("Por favor ingresá un DNI válido.");
     return;
   }
+
+  dniGlobal = dni; // ASIGNACIÓN GLOBAL
 
   mostrarPantalla("pantallaCarga");
 
@@ -87,11 +90,10 @@ function actualizarSeleccion() {
 }
 
 function generarPago() {
-  const dni = document.getElementById("dniInput").value.trim();
   const qrDiv = document.getElementById("qrcode");
   const pagarBtn = document.getElementById("pagarBtn");
 
-  if (cuotasSeleccionadas.length === 0) return;
+  if (cuotasSeleccionadas.length === 0 || !dniGlobal) return;
 
   mostrarPantalla("pantallaCarga");
 
@@ -103,7 +105,7 @@ function generarPago() {
       total += isNaN(importe) ? 0 : importe;
     });
 
-    fetch(`https://backend-mercadopago-ulig.onrender.com/crear_qr?dni=${dni}&total=${total}`)
+    fetch(`https://backend-mercadopago-ulig.onrender.com/crear_qr?dni=${dniGlobal}&total=${total}`)
       .then(response => {
         if (!response.ok) throw new Error("No se pudo generar el link de pago");
         return response.json();
@@ -131,9 +133,12 @@ function volverInicio() {
   mostrarPantalla("pantallaInicio");
 }
 
-// Escuchar si se confirma el pago real
+// ✅ Escuchar si se confirma el pago real
+const qrDiv = document.getElementById("qrcode");
+
 const interval = setInterval(() => {
-  fetch(`https://backend-mercadopago-ulig.onrender.com/estado_pago?dni=${dni}`)
+  if (!dniGlobal) return;
+  fetch(`https://backend-mercadopago-ulig.onrender.com/estado_pago?dni=${dniGlobal}`)
     .then(res => res.json())
     .then(status => {
       if (status.pagado) {
