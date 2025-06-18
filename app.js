@@ -143,18 +143,27 @@ function generarPago() {
   }, 2000);
 }
 
+let intervalCheck = null;
+
 function volverInicio() {
   document.getElementById("dniInput").value = "";
   cuotasSeleccionadas = [];
+  dniGlobal = null;
   document.getElementById("resultado").innerHTML = "";
   document.getElementById("qrcode").innerHTML = "";
   document.getElementById("pagarBtn").disabled = true;
+  document.getElementById("pagarBtn").style.display = "inline-block";
+  document.getElementById("volverBtn").style.display = "inline-block";
+  if (intervalCheck) clearInterval(intervalCheck); // 🧹 Detener el intervalo
   mostrarPantalla("pantallaInicio");
 }
 
+
 const qrDiv = document.getElementById("qrcode");
 
-const interval = setInterval(() => {
+if (intervalCheck) clearInterval(intervalCheck); // limpiar anterior si había
+
+intervalCheck = setInterval(() => {
   if (!dniGlobal || cuotasSeleccionadas.length === 0) return;
   const comprobantes = cuotasSeleccionadas.map(c => c.comprobante);
   const url = `https://backend-mercadopago-ulig.onrender.com/estado_pago?dni=${dniGlobal}&comprobantes=${comprobantes.join(",")}`;
@@ -163,7 +172,7 @@ const interval = setInterval(() => {
     .then(res => res.json())
     .then(status => {
       if (status.pagado) {
-        clearInterval(interval);
+        clearInterval(intervalCheck);
 
         const resultadoDiv = document.getElementById("resultado");
         const pagarBtn = document.getElementById("pagarBtn");
