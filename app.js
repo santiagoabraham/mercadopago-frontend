@@ -1,5 +1,5 @@
 let cuotasSeleccionadas = [];
-let dniGlobal = null;
+let dniGlobal = null; // NUEVO
 
 function mostrarPantalla(id) {
   document.getElementById("pantallaInicio").classList.add("hidden");
@@ -15,12 +15,13 @@ function buscarSocio() {
     return;
   }
 
-  dniGlobal = dni;
+  dniGlobal = dni; // ASIGNACIÓN GLOBAL
+
   mostrarPantalla("pantallaCarga");
 
   setTimeout(() => {
     fetch("https://api.sheetbest.com/sheets/f37ca123-cfac-4228-846b-8e526202c6e7")
-      .then(res => res.json())
+      .then(response => response.json())
       .then(data => {
         const socioFiltrado = data.filter(item => item.DNI && item.DNI.trim() === dni);
         const resultadoDiv = document.getElementById("resultado");
@@ -32,40 +33,25 @@ function buscarSocio() {
         pagarBtn.disabled = true;
 
         if (socioFiltrado.length > 0) {
-          const comprobantesTodos = socioFiltrado.map(c => c.Nro_Comprobante);
+          let html = `<strong>Nombre:</strong> ${socioFiltrado[0].Nombre}<br>`;
+          html += `<strong>Estado:</strong> ${socioFiltrado[0].Estado}<br>`;
+          html += `<strong>Cuotas adeudadas:</strong><br><ul style="list-style: none; padding-left: 0;">`;
 
-          fetch(`https://backend-mercadopago-ulig.onrender.com/estado_pago?dni=${dni}&comprobantes=${comprobantesTodos.join(",")}`)
-            .then(res => res.json())
-            .then(estado => {
-              const pagados = estado.comprobantes || [];
-              let html = `<strong>Nombre:</strong> ${socioFiltrado[0].Nombre}<br>`;
-              html += `<strong>Estado:</strong> ${socioFiltrado[0].Estado}<br>`;
-              html += `<strong>Cuotas adeudadas:</strong><br><ul style="list-style: none; padding-left: 0;">`;
+          socioFiltrado.forEach((cuota, index) => {
+            html += `
+              <li>
+                <label>
+                  <input type="checkbox" value="${cuota.Importe.trim()}" data-cuota="${cuota.Cuota}" data-vencimiento="${cuota.Vencimiento}" onchange="actualizarSeleccion()"/>
+                  ${cuota.Cuota} - ${cuota.Importe.trim()} (Vence: ${cuota.Vencimiento})
+                </label>
+              </li>`;
+          });
 
-              socioFiltrado.forEach((cuota) => {
-                const comp = cuota.Nro_Comprobante;
-                const estaPagado = pagados.includes(comp);
+          html += `</ul><strong>Total a pagar:</strong> <span id="totalSeleccionado">$0.00</span>`;
+          resultadoDiv.className = "card fade-in";
+          resultadoDiv.innerHTML = html;
 
-                html += `<li><label>`;
-                if (estaPagado) {
-                  html += `
-                    <input type="checkbox" disabled />
-                    ${cuota.Cuota} - ${cuota.Importe.trim()} (Vence: ${cuota.Vencimiento}) <span style="color:green;">✅ PAGADO</span>
-                  `;
-                } else {
-                  html += `
-                    <input type="checkbox" value="${cuota.Importe.trim()}" data-cuota="${cuota.Cuota}" data-vencimiento="${cuota.Vencimiento}" data-comprobante="${cuota.Nro_Comprobante}" onchange="actualizarSeleccion()"/>
-                    ${cuota.Cuota} - ${cuota.Importe.trim()} (Vence: ${cuota.Vencimiento})
-                  `;
-                }
-                html += `</label></li>`;
-              });
-
-              html += `</ul><strong>Total a pagar:</strong> <span id="totalSeleccionado">$0.00</span>`;
-              resultadoDiv.className = "card fade-in";
-              resultadoDiv.innerHTML = html;
-              mostrarPantalla("pantallaCuotas");
-            });
+          mostrarPantalla("pantallaCuotas");
         } else {
           alert("No se encontró ningún socio con ese DNI.");
           mostrarPantalla("pantallaInicio");
@@ -95,8 +81,7 @@ function actualizarSeleccion() {
     cuotasSeleccionadas.push({
       cuota: cb.dataset.cuota,
       vencimiento: cb.dataset.vencimiento,
-      importe: cb.value,
-      comprobante: cb.dataset.comprobante
+      importe: cb.value
     });
   });
 
@@ -114,17 +99,13 @@ function generarPago() {
 
   setTimeout(() => {
     let total = 0;
-    const comprobantes = [];
     cuotasSeleccionadas.forEach(c => {
       const limpio = c.importe.replace(/\s/g, "").replace("$", "").replace(/\./g, "").replace(",", ".");
       const importe = parseFloat(limpio);
       total += isNaN(importe) ? 0 : importe;
-      comprobantes.push(c.comprobante);
     });
 
-    const url = `https://backend-mercadopago-ulig.onrender.com/crear_qr?dni=${dniGlobal}&total=${total}&comprobantes=${comprobantes.join(",")}`;
-
-    fetch(url)
+    fetch(`https://backend-mercadopago-ulig.onrender.com/crear_qr?dni=${dniGlobal}&total=${total}`)
       .then(response => {
         if (!response.ok) throw new Error("No se pudo generar el link de pago");
         return response.json();
@@ -143,56 +124,28 @@ function generarPago() {
   }, 2000);
 }
 
-let intervalCheck = null;
-
 function volverInicio() {
   document.getElementById("dniInput").value = "";
   cuotasSeleccionadas = [];
-  dniGlobal = null;
   document.getElementById("resultado").innerHTML = "";
   document.getElementById("qrcode").innerHTML = "";
   document.getElementById("pagarBtn").disabled = true;
-  document.getElementById("pagarBtn").style.display = "inline-block";
-  document.getElementById("volverBtn").style.display = "inline-block";
-  if (intervalCheck) clearInterval(intervalCheck); // 🧹 Detener el intervalo
   mostrarPantalla("pantallaInicio");
 }
 
-
+// ✅ Escuchar si se confirma el pago real
 const qrDiv = document.getElementById("qrcode");
 
-if (intervalCheck) clearInterval(intervalCheck); // limpiar anterior si había
-
-intervalCheck = setInterval(() => {
-  if (!dniGlobal || cuotasSeleccionadas.length === 0) return;
-  const comprobantes = cuotasSeleccionadas.map(c => c.comprobante);
-  const url = `https://backend-mercadopago-ulig.onrender.com/estado_pago?dni=${dniGlobal}&comprobantes=${comprobantes.join(",")}`;
-
-  fetch(url)
+const interval = setInterval(() => {
+  if (!dniGlobal) return;
+  fetch(`https://backend-mercadopago-ulig.onrender.com/estado_pago?dni=${dniGlobal}`)
     .then(res => res.json())
     .then(status => {
       if (status.pagado) {
-        clearInterval(intervalCheck);
-
-        const resultadoDiv = document.getElementById("resultado");
-        const pagarBtn = document.getElementById("pagarBtn");
-        const volverBtn = document.getElementById("volverBtn");
-
-        resultadoDiv.innerHTML = "";
-        pagarBtn.style.display = "none";
-        volverBtn.style.display = "none";
-
-        qrDiv.innerHTML = `
-          <div class="agradecimiento fade-in">
-            ¡Gracias por pagar! 🎉<br><br>
-            Serás redirigido al inicio en 5 segundos...
-          </div>`;
-
-        mostrarPantalla("pantallaCarga");
-
-        setTimeout(() => {
-          volverInicio();
-        }, 5000);
+        clearInterval(interval);
+        qrDiv.innerHTML = `<div class="agradecimiento fade-in">¡Gracias por pagar! 🎉</div>`;
+        document.getElementById("pagarBtn").style.display = "none";
+        document.getElementById("volverBtn").style.display = "none";
       }
     });
 }, 5000);
